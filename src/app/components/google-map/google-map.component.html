@@ -1,0 +1,21 @@
+<input type="text" #locationInput placeholder="location">
+<input type="text" #placesInput placeholder="places" (blur)="onSearch(placesInput.value)">
+
+<div>
+    <div *ngFor="let type of types">
+        {{type}}
+        <input type="radio" [value]="type" [(ngModel)]="typeModel">
+    </div>
+
+</div>
+
+<div class="places">
+    <span *ngFor="let marker of markers" (click)="onMarkerClick(marker)">
+        {{marker.title}}
+    </span>
+</div>
+
+<google-map class="google-map" [center]="center" [zoom]="zoom" >
+    <map-marker #markerElem *ngFor="let marker of markers" [position]="marker.position" [title]="marker.title" [options]="marker.options" (mapClick)="openInfo(markerElem)"></map-marker>
+    <map-info-window>Hello Google Maps</map-info-window>
+</google-map>
