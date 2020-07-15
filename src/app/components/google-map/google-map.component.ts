@@ -1,6 +1,14 @@
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnInit, QueryList, ViewChild, ViewChildren } from '@angular/core';
-import { GoogleMapsService } from 'src/app/services/google-maps.service';
-import { GoogleMap, MapInfoWindow, MapMarker } from '@angular/google-maps';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, NgZone, OnInit, QueryList, ViewChild, ViewChildren } from '@angular/core';
+import { MatSelectChange } from '@angular/material/select';
+import { MatSnackBar } from '@angular/material/snack-bar';
+
+interface ExtendedMarker extends google.maps.Marker {
+  name?: string;
+  photos?: Array<any>;
+  formatted_address?: string;
+  formatted_phone_number?: string;
+  placeId?: string;
+}
 
 @Component({
   selector: 'app-google-map',
@@ -8,90 +16,201 @@ import { GoogleMap, MapInfoWindow, MapMarker } from '@angular/google-maps';
   styleUrls: ['./google-map.component.css']
 })
 export class GoogleMapComponent implements OnInit, AfterViewInit {
-
-  constructor(public cd: ChangeDetectorRef) {
+  constructor(public cd: ChangeDetectorRef, private snackBar: MatSnackBar, private ngZone: NgZone) {
   }
 
   @ViewChild('mapEl', {static: true}) public mapEl: ElementRef;
+  @ViewChild('dynamicInfoContent', {static: true}) public dynamicInfoContent: ElementRef;
+
+  @ViewChild('infoWindowEl', {static: true}) public infoWindowEl: ElementRef;
   @ViewChild('locationInput', {static: true}) public locationInput: ElementRef;
   @ViewChild('placesInput', {static: true}) public placesInput: ElementRef;
-  @ViewChild(GoogleMap, {static: false}) public googleMap: GoogleMap;
-  @ViewChildren(MapMarker) public markersa: QueryList<GoogleMap>;
-  @ViewChild(MapInfoWindow, { static: false })  public infoWindow: MapInfoWindow;
 
-  public placesSearch;
-  public locationAutocomplete;
-  public markers: Array<any> = [];
-  public center: any = { lat: -33.866, lng: 151.196 };
-  public zoom = 15;
+  public googleMap: google.maps.Map;
+  public infoWindow: google.maps.InfoWindow;
+  public placesSearch: google.maps.places.PlacesService;
+  public locationAutocomplete: google.maps.places.Autocomplete;
+  public markers: Array<ExtendedMarker> = [];
   public types = [
     'museum',
     'food',
-    'point_of_interest'
-  ]
-  public typeModel;
+    'shopping_mall',
+    'tourist_attraction',
+    'cafe'
+  ];
+  public chosenType: string;
+  public placeInputModel: string = null;
+  public currentInfoWindowProps: ExtendedMarker = null;
+  public locationBounds: google.maps.LatLngBounds = null;
+  public defaultLocation: google.maps.LatLngLiteral = { lat: -33.866, lng: 151.196 };
 
   ngOnInit() {
-    this.typeModel = this.types[0];
+    this.chosenType = this.types[1];
   }
 
   ngAfterViewInit(): void {
     this.createGoogleMapWidget();
-
   }
 
 
-  public onSearch(val) {
-    const request = {
-      keyword: val,
-      radius: 500,
-      location: {
-        lat: this.center.lat,
-        lng: this.center.lng
-      },
-      type: this.typeModel
-    };
-
-    this.placesSearch.nearbySearch(request, (results, status) => {
-      if (status === google.maps.places.PlacesServiceStatus.OK) {
-        this.createMarkers(results);
-        this.cd.detectChanges();
-      }
+  private createGoogleMapWidget() {
+    this.googleMap = new google.maps.Map(this.mapEl.nativeElement, {
+      center: this.defaultLocation,
+      zoom: 10
     });
 
+    this.createInfoWindows();
+    this.createLocationAutocomplete();
+    this.createPlacesSearch();
+  }
+
+  /**
+   *
+   * @param val string
+   */
+  public searchPlaces(val: string) {
+    const request: google.maps.places.PlaceSearchRequest = {
+      keyword: val,
+      radius: 500,
+      bounds: this.locationBounds,
+      type: this.chosenType
+    };
+
+    if (this.locationBounds) {
+      request.bounds = this.locationBounds;
+    } else {
+      // apply default location if no bounds was provided and extends radius
+      request.location = this.defaultLocation;
+      request.radius = 50000;
+    }
+
+    this.placesSearch.nearbySearch(request, this.onNearbySearchResults.bind(this));
+
+  }
+
+  /**
+   *
+   * @param results Array<google.maps.places.PlaceResult>
+   * @param status google.maps.places.PlacesServiceStatus
+   */
+  private onNearbySearchResults(results: Array<google.maps.places.PlaceResult>, status: google.maps.places.PlacesServiceStatus) {
+      if (status === google.maps.places.PlacesServiceStatus.OK) {
+        this.clearMarkers();
+        this.createMarkers(results);
+        this.cd.detectChanges();
+      } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+
+        // works well only inside ngZone
+        this.ngZone.run(() => {
+          this.snackBar.open(
+            'Nothing was found',
+            'End now',
+            {
+              verticalPosition: 'top',
+              horizontalPosition: 'center',
+              duration: 1500
+            });
+        });
+
+    }
+  }
+
+  /**
+   *
+   * @param marker google.maps.Marker
+   */
+  public onMouseEnter(marker: google.maps.Marker) {
+    marker.setIcon('http://maps.google.com/mapfiles/ms/icons/green-dot.png');
+  }
+
+  public onMouseLeave() {
+    this.markers.forEach(m => {
+      m.setIcon(null)
+
+    });
+  }
+
+  /**
+   *
+   * @param $event MatSelectChange
+   */
+  public onTypeChange($event: MatSelectChange) {
+    this.chosenType = $event.value;
   }
 
   /**
    *
    * @param places Array<any>
    */
-  private createMarkers(places: Array<any>) {
+  private createMarkers(places: Array<google.maps.places.PlaceResult>) {
     const bounds = new google.maps.LatLngBounds();
 
-    this.markers = [];
     places.forEach(place => {
-
-      this.markers.push({
+      const marker = new google.maps.Marker({
         position: place.geometry.location,
-        title: place.name,
-        options: {
-          id: Math.floor(Math.random() * Date.now()),
-        }
-      });
+        animation: google.maps.Animation.DROP,
+        map: this.googleMap,
+        name: place.name,
+        placeId: place.place_id
+      } as any) ;
+
+      this.markers.push(marker);
+      google.maps.event.addListener(marker, 'click', () => this.showInfoWindow(marker));
 
       bounds.extend(place.geometry.location);
     });
 
     this.googleMap.fitBounds(bounds);
-
+    this.cd.detectChanges();
   }
 
-  private createGoogleMapWidget() {
-    this.createLocationAutocomplete();
-    this.createLocationSearch();
+  private onLocationInputChange() {
+    this.clearMarkers();
+    const place = this.locationAutocomplete.getPlace();
+
+    if (!place.geometry) {
+      return;
+    }
+
+    // update map viewport
+    this.googleMap.setCenter(place.geometry.location);
+    this.googleMap.setZoom(10);
+
+    // save location bounds to be able to search inside last user location area
+    this.locationBounds = this.googleMap.getBounds();
+    this.cd.detectChanges();
+
+    // run search again if place was typed
+    if (this.placeInputModel) {
+      this.searchPlaces(this.placeInputModel);
+    }
   }
 
 
+  private clearMarkers() {
+    this.markers.forEach((m: ExtendedMarker) => {
+      m.setMap(null);
+    });
+    this.markers = [];
+  }
+
+  /**
+   *
+   * @param marker ExtendedMarker
+   */
+  private showInfoWindow(marker: ExtendedMarker) {
+    this.placesSearch.getDetails({placeId: marker.placeId}, (place, status) => {
+      if (status !== google.maps.places.PlacesServiceStatus.OK) {
+        return;
+      }
+      Object.assign(marker, place);
+      marker.photos = place.photos ? place.photos.filter((p, i) => i < 4) : [];
+      this.currentInfoWindowProps = marker;
+      this.infoWindow.setContent(this.dynamicInfoContent.nativeElement);
+      this.infoWindow.open(this.googleMap, marker);
+      this.cd.detectChanges();
+    });
+  }
 
   private createLocationAutocomplete() {
     this.locationAutocomplete = new google.maps.places.Autocomplete(this.locationInput.nativeElement, {
@@ -101,46 +220,11 @@ export class GoogleMapComponent implements OnInit, AfterViewInit {
     this.locationAutocomplete.addListener('place_changed', this.onLocationInputChange.bind(this));
   }
 
-  private createLocationSearch() {
-    this.placesSearch = new google.maps.places.PlacesService(document.createElement('div'));
+  private createPlacesSearch() {
+    this.placesSearch = new google.maps.places.PlacesService(this.googleMap);
   }
 
-  private onLocationInputChange() {
-    const place = this.locationAutocomplete.getPlace();
-
-    if (!place.geometry) {
-      return;
-    }
-
-    // update map viewport
-    this.center.lat = place.geometry.location.lat();
-    this.center.lng = place.geometry.location.lng();
-    this.zoom = 10;
-    this.googleMap.panTo(place.geometry.location);
-
-    this.cd.detectChanges();
-  }
-
-  /**
-   *
-   * @param marker any
-   */
-  onMarkerClick(marker: any) {
-      this.markersa.forEach((m: any) => {
-        if (m._options.value.id === marker.options.id) {
-          m.marker.setAnimation(google.maps.Animation.BOUNCE);
-        } else {
-          m.marker.setAnimation(null);
-        }
-      });
-
-  }
-
-  /**
-   *
-   * @param marker
-   */
-  openInfo(marker: MapMarker) {
-    this.infoWindow.open(marker)
+  private createInfoWindows() {
+    this.infoWindow = new google.maps.InfoWindow();
   }
 }

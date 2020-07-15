@@ -1,3 +1,77 @@
+:host {
+	display: flex;
+	flex-direction: column;
+	height: calc(100vh - 100px);
+}
+
+.google-map-wrapper {
+	flex: 1;
+	position: relative;
+}
+
 .google-map {
-	height: 100vh;
+	height: 100%;
+}
+
+.places-input {
+	margin-left: 8px;
+}
+
+.location-input, .places-input {
+	width: 400px;
+}
+
+.radio-group {
+	display: block;
+}
+
+.radio-group .radio {
+	margin-right: 10px;
+}
+
+.form {
+	margin-bottom: 10px;
+}
+
+
+
+.places {
+	position: absolute;
+	right: 0;
+	top: 0;
+	background: #fff;
+	height: 100%;
+	padding: 10px;
+	border: 1px solid grey;
+	overflow: auto;
+	min-width: 250px;
+}
+
+.place-match {
+	display: flex;
+	padding: 10px;
+	cursor: pointer;
+	align-items: center;
+}
+
+.place-match .pointer-img {
+	width: 20px;
+}
+
+.place-match:hover {
+	background: #ddd;
+}
+
+.info-content-images {
+	display: flex;
+}
+
+.info-content-title {
+	margin: 0 0 5px 0;
+}
+
+.info-content-image {
+	align-self: center;
+	margin: 3px;
+	max-height: 67px;
 }

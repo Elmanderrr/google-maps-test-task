@@ -1,21 +1,55 @@
-<input type="text" #locationInput placeholder="location">
-<input type="text" #placesInput placeholder="places" (blur)="onSearch(placesInput.value)">
+<form (submit)="searchPlaces(placesInput.value)" class="form" ngNativeValidate>
+    <mat-form-field class="location-input">
+        <mat-label>Type a location</mat-label>
+        <input name="location" matInput type="text" #locationInput >
+    </mat-form-field>
+    <mat-form-field class="places-input">
+        <input name="places" matInput type="text" #placesInput [(ngModel)]="placeInputModel">
+        <mat-label>Type a place</mat-label>
+    </mat-form-field>
+    <br>
+    <mat-form-field  appearance="fill">
+        <mat-label>{{chosenType}}</mat-label>
+        <mat-select (selectionChange)="onTypeChange($event)">
+            <mat-option [value]="type" *ngFor="let type of types">{{type}}</mat-option>
+        </mat-select>
+        <mat-hint align="end">Choose a category</mat-hint>
+    </mat-form-field>
+    <br>
+    <button mat-raised-button color="primary">Submit</button>
+</form>
 
-<div>
-    <div *ngFor="let type of types">
-        {{type}}
-        <input type="radio" [value]="type" [(ngModel)]="typeModel">
+
+
+<div class="google-map-wrapper">
+    <div class="google-map" #mapEl></div>
+
+    <div class="places" *ngIf="markers.length">
+        <span class="place-match" *ngFor="let marker of markers" (click)="showInfoWindow(marker)" (mouseenter)="onMouseEnter(marker)" (mouseleave)="onMouseLeave()">
+            <img class="pointer-img" src="https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2.png" alt="">
+            {{marker.name}}
+        </span>
     </div>
-
 </div>
 
-<div class="places">
-    <span *ngFor="let marker of markers" (click)="onMarkerClick(marker)">
-        {{marker.title}}
-    </span>
+<div #infoWindowEl></div>
+<div class="info-content-wrapper" style="display: none">
+    <div #dynamicInfoContent>
+
+        <h3 class="info-content-title">
+            {{currentInfoWindowProps?.name}}
+        </h3>
+        <div>
+            <b>Address: </b>{{currentInfoWindowProps?.formatted_address}}
+        </div>
+
+        <div>
+            <b>Phone Number: </b>{{currentInfoWindowProps?.formatted_phone_number}}
+        </div>
+
+        <div class="info-content-images">
+            <img class="info-content-image" [src]="photo.getUrl({maxHeight: 150})" alt="" *ngFor="let photo of currentInfoWindowProps?.photos">
+        </div>
+    </div>
 </div>
 
-<google-map class="google-map" [center]="center" [zoom]="zoom" >
-    <map-marker #markerElem *ngFor="let marker of markers" [position]="marker.position" [title]="marker.title" [options]="marker.options" (mapClick)="openInfo(markerElem)"></map-marker>
-    <map-info-window>Hello Google Maps</map-info-window>
-</google-map>
