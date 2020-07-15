@@ -1,6 +1,4 @@
 import { Component, OnInit } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { GoogleMapsService } from 'src/app/services/google-maps.service';
 
 @Component({
   selector: 'app-root',
@@ -8,11 +6,10 @@ import { GoogleMapsService } from 'src/app/services/google-maps.service';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent implements OnInit {
-  constructor(public http: HttpClient, public googleMapsService: GoogleMapsService) {
+  constructor() {
   }
 
   ngOnInit(): void {
   }
 
-  title = 'adraba-tst';
 }
